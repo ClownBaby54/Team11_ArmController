@@ -18,8 +18,8 @@ VarSpeedServo myservo2;
 VarSpeedServo myservo3;  // create servo object to control a servo 
 
 const int servoPin1 = 9; // the digital pin used for the first servo
-const int servoPin2 = 10; // the digital pin used for the second servo
-const int servoPin3 = 12; // the digital pin used for the first servo
+const int servoPin2 = 6; // the digital pin used for the second servo
+const int servoPin3 = 5; // the digital pin used for the first servo
 
 // an identifying device destination
 // Let these addresses be used for the pair
@@ -48,6 +48,8 @@ PayloadStruct payload;
 
 void setup() {
 
+  
+//  Serial.begin(115200);
   myservo1.attach(servoPin1);  // attaches the servo on pin 9 to the servo object
   myservo1.write(0,50,true); // set the intial position of the servo, as fast as possible, run in background
   myservo2.attach(servoPin2);  // attaches the servo on pin 9 to the servo object
@@ -55,6 +57,10 @@ void setup() {
   myservo3.attach(servoPin3);  // attaches the servo on pin 9 to the servo object
   myservo3.write(0,50,true);  // set the intial position of the servo, as fast as possible, wait until done
 
+    // initialize the transceiver on the SPI bus
+  if (!radio.begin()) {
+    while (1) {} // hold in infinite loop
+  }
   // Set the PA Level low to try preventing power supply related problems
   // because these examples are likely run with nodes in close proximity to
   // each other.
@@ -103,13 +109,24 @@ void loop()
       radio.writeAckPayload(1, &payload, sizeof(payload));
 
       //convert servo angles from incoming EMG data to 180 degree scale
-      Servo1Angle = ((received.message[0] - '0')*10 + (received.message[1] - '0'))/99*180;
-      Servo2Angle = ((received.message[1] - '0')*10 + (received.message[2] - '0'))/99*180;
-      Servo3Angle = ((received.message[3] - '0')*10 + (received.message[4] - '0'))/99*180;
+      if(received.message[1] == '.')
+      {
+        Servo1Angle = (float)(received.message[0] - '0')/99*180;
+      }
+      else
+      {
+        Servo1Angle = (float)((received.message[0] - '0')*10 + (received.message[1] - '0'))/99*180;
+      }
+//      Serial.println(received.message[0]);
+//      Serial.println(Servo1Angle);
+      
+//      Servo1Angle = ((received.message[0] - '0')*10 + (received.message[1] - '0'))/99*180;
+//      Servo2Angle = ((received.message[1] - '0')*10 + (received.message[2] - '0'))/99*180;
+//      Servo3Angle = ((received.message[3] - '0')*10 + (received.message[4] - '0'))/99*180;
       
       myservo1.write(Servo1Angle,50,false); // set the position of the servo, as fast as possible, run in background
-      myservo2.write(Servo2Angle,50,false); // set the position of the servo, as fast as possible, run in background
-      myservo3.write(Servo3Angle,50,false); // set the position of the servo, as fast as possible, run in background
+//      myservo2.write(Servo2Angle,50,false); // set the position of the servo, as fast as possible, run in background
+//      myservo3.write(Servo3Angle,50,false); // set the position of the servo, as fast as possible, run in background
     }
 
 } // loop
