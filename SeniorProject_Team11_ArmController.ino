@@ -12,6 +12,12 @@
 
 // instantiate an object for the nRF24L01 transceiver
 RF24 radio(7, 8); // using pin 7 for the CE pin, and pin 8 for the CSN pin
+//Pin 13 -> SCK
+//Pin 12 -> MISO
+//Pin 11 -> MOSI
+//Pin  8 -> CSN
+//Pin  7 -> CE
+//Unused -> IRQ
 
 VarSpeedServo myservo1;  // create servo object to control a servo               
 VarSpeedServo myservo2;
@@ -23,7 +29,8 @@ const int servoPin3 = 5; // the digital pin used for the first servo
 
 // an identifying device destination
 // Let these addresses be used for the pair
-uint8_t address[][6] = {"10dar", "20dar"};
+//uint8_t address[][6] = {"10dar", "20dar"};
+uint8_t address[][6] = {"10dar", "30dar"};
 // It is very helpful to think of an address as a path instead of as
 // an identifying device destination
 // to use different addresses on a pair of radios, we need a variable to
@@ -51,11 +58,11 @@ void setup() {
   
 //  Serial.begin(115200);
   myservo1.attach(servoPin1);  // attaches the servo on pin 9 to the servo object
-  myservo1.write(0,50,true); // set the intial position of the servo, as fast as possible, run in background
+  myservo1.write(0,20,true); // set the intial position of the servo, as fast as possible, run in background
   myservo2.attach(servoPin2);  // attaches the servo on pin 9 to the servo object
-  myservo2.write(0,50,true);  // set the intial position of the servo, as fast as possible, wait until done
+  myservo2.write(0,20,true);  // set the intial position of the servo, as fast as possible, wait until done
   myservo3.attach(servoPin3);  // attaches the servo on pin 9 to the servo object
-  myservo3.write(0,50,true);  // set the intial position of the servo, as fast as possible, wait until done
+  myservo3.write(0,20,true);  // set the intial position of the servo, as fast as possible, wait until done
 
     // initialize the transceiver on the SPI bus
   if (!radio.begin()) {
@@ -71,7 +78,7 @@ void setup() {
 
   // Acknowledgement packets have no payloads by default. We need to enable
   // this feature for all nodes (TX & RX) to use ACK payloads.
-  radio.enableAckPayload();
+//  radio.enableAckPayload();
 
   // set the TX address of the RX node into the TX pipe
   radio.openWritingPipe(address[radioNumber]);     // always uses pipe 0
@@ -80,9 +87,9 @@ void setup() {
   radio.openReadingPipe(1, address[!radioNumber]); // using pipe 1
 
   // setup the ACK payload & load the first response into the FIFO
-  memcpy(payload.message, "12 ", 3);                       // set the payload message
-  // load the payload for the first received transmission on pipe 0
-  radio.writeAckPayload(1, &payload, sizeof(PayloadStruct));
+//  memcpy(payload.message, "12 ", 3);                       // set the payload message
+//  // load the payload for the first received transmission on pipe 0
+//  radio.writeAckPayload(1, &payload, sizeof(PayloadStruct));
 
   radio.startListening();                                     // put radio in RX mode
 }
@@ -102,12 +109,17 @@ void loop()
       radio.read(&received, sizeof(received));       // get incoming payload
 
       // save incoming counter & increment for next outgoing
-      payload.counter = received.counter + 1;
-      letssee = letssee+1;
-      sprintf(payload.message, "%d", letssee);
-      // load the payload for the first received transmission on pipe 0
-      radio.writeAckPayload(1, &payload, sizeof(payload));
-
+//      payload.counter = received.counter + 1;
+//      letssee = letssee+1;
+//      sprintf(payload.message, "%d", letssee);
+//      // load the payload for the first received transmission on pipe 0
+//      radio.writeAckPayload(1, &payload, sizeof(payload));
+      //need to send data to dongle in order to get it received.
+//      memcpy(payload.message, "Hello ", 6);                       // set the payload message
+      radio.stopListening();                                      // put radio in TX mode
+      radio.write(&received, sizeof(received));    // transmit to usb dongle for data display. We dont care if it doesnt receieve it since we'll see it
+      radio.startListening();
+      
       //convert servo angles from incoming EMG data to 180 degree scale
       if(received.message[1] == '.')
       {
@@ -117,6 +129,25 @@ void loop()
       {
         Servo1Angle = (float)((received.message[0] - '0')*10 + (received.message[1] - '0'))/99*180;
       }
+      
+//      if(received.message[3] == '.')
+//      {
+//        Servo2Angle = (float)(received.message[2] - '0')/99*180;
+//      }
+//      else
+//      {
+//        Servo2Angle = (float)((received.message[2] - '0')*10 + (received.message[3] - '0'))/99*180;
+//      }
+//
+//      if(received.message[5] == '.')
+//      {
+//        Servo3Angle = (float)(received.message[4] - '0')/99*180;
+//      }
+//      else
+//      {
+//        Servo3Angle = (float)((received.message[4] - '0')*10 + (received.message[5] - '0'))/99*180;
+//      }
+      
 //      Serial.println(received.message[0]);
 //      Serial.println(Servo1Angle);
       
