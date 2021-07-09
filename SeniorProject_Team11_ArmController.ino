@@ -2,6 +2,7 @@
  * Team 11
  * EMG Muscle Memory
  * Description: This code is for the Robot Arm Controller
+ This code is used on an Arduino Mega and is located on the base of the robot arm.
  */
 
 #include <SPI.h>
