@@ -12,6 +12,7 @@
 
 // instantiate an object for the nRF24L01 transceiver
 RF24 radio(7, 8); // using pin 7 for the CE pin, and pin 8 for the CSN pin
+
 /*                 Pin assignments 
          GND                               3.3V
      CE -> PIN 7                      CSN -> PIN 8
@@ -19,13 +20,15 @@ RF24 radio(7, 8); // using pin 7 for the CE pin, and pin 8 for the CSN pin
    MISO -> PIN 50                     IRQ -> UNUSED
 */
 
-VarSpeedServo myservo1;  // create servo object to control a servo               
-VarSpeedServo myservo2;  // create servo object to control a servo 
-VarSpeedServo myservo3;  // create servo object to control a servo 
+/* Create servo object to control a servo */
+VarSpeedServo myservo1;         
+VarSpeedServo myservo2;  
+VarSpeedServo myservo3; 
 
-const int servoPin1 = 9; // the digital pin used for the first servo
-const int servoPin2 = 6; // the digital pin used for the second servo
-const int servoPin3 = 5; // the digital pin used for the first servo
+/*Digitla pin used for the first servo*/
+const int servoPin1 = 9; 
+const int servoPin2 = 6; 
+const int servoPin3 = 5; 
 
 // an identifying device destination
 // Let these addresses be used for the pair
