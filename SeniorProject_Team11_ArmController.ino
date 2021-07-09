@@ -12,13 +12,12 @@
 
 // instantiate an object for the nRF24L01 transceiver
 RF24 radio(7, 8); // using pin 7 for the CE pin, and pin 8 for the CSN pin
-/*Pin assignments */
-//Pin 13 -> SCK  (52)
-//Pin 12 -> MISO (50)
-//Pin 11 -> MOSI (51)
-//Pin  8 -> CSN  
-//Pin  7 -> CE
-//Unused -> IRQ
+/*                 Pin assignments 
+         GND                               3.3V
+     CE -> PIN 7                      CSN -> PIN 8
+    SCK -> PIN 52                    MOSI -> PIN 51
+   MISO -> PIN 50                     IRQ -> UNUSED
+*/
 
 VarSpeedServo myservo1;  // create servo object to control a servo               
 VarSpeedServo myservo2;  // create servo object to control a servo 
