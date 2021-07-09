@@ -1,8 +1,7 @@
 /*
  * Team 11
  * EMG Muscle Memory
- * Robot Arm Controller
- * 
+ * Description: This code is for the Robot Arm Controller
  */
 
 #include <SPI.h>
@@ -12,6 +11,7 @@
 
 // instantiate an object for the nRF24L01 transceiver
 RF24 radio(7, 8); // using pin 7 for the CE pin, and pin 8 for the CSN pin
+/*Pin assignments */
 //Pin 13 -> SCK  (52)
 //Pin 12 -> MISO (50)
 //Pin 11 -> MOSI (51)
@@ -20,7 +20,7 @@ RF24 radio(7, 8); // using pin 7 for the CE pin, and pin 8 for the CSN pin
 //Unused -> IRQ
 
 VarSpeedServo myservo1;  // create servo object to control a servo               
-VarSpeedServo myservo2;
+VarSpeedServo myservo2;  // create servo object to control a servo 
 VarSpeedServo myservo3;  // create servo object to control a servo 
 
 const int servoPin1 = 9; // the digital pin used for the first servo
@@ -46,8 +46,6 @@ struct PayloadStruct {
 PayloadStruct payload;
 
 void setup() {
-
-  
   Serial.begin(115200);
   myservo1.attach(servoPin1);  // attaches the servo on pin 9 to the servo object
   myservo1.write(0,20,true); // set the intial position of the servo, as fast as possible, run in background
@@ -82,7 +80,7 @@ void setup() {
   radio.openReadingPipe(1, address[!radioNumber]); // using pipe 1
 
   radio.startListening();                                     // put radio in RX mode
-}
+} // void setup loop
 
 void loop() 
 {
@@ -132,12 +130,12 @@ void loop()
 //      }
       
       Serial.println(received.message[0]);
-//      Serial.println(Servo1Angle);
-      
+//      Serial.println(Servo1Angle);   
       
       myservo1.write(Servo1Angle,50,false); // set the position of the servo, as fast as possible, run in background
 //      myservo2.write(Servo2Angle,50,false); // set the position of the servo, as fast as possible, run in background
 //      myservo3.write(Servo3Angle,50,false); // set the position of the servo, as fast as possible, run in background
-    }
+      
+    }// if (radio.available(&pipe)) 
 
 } // loop
