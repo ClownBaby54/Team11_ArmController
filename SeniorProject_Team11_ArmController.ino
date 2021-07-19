@@ -1,10 +1,11 @@
 /*
  * Team 11
  * EMG Muscle Memory
- * Description: This code is for the Robot Arm Controller
- This code is used on an Arduino Mega and is located on the base of the robot arm.
+ * Robot Arm Controller
+ * 
  */
 
+#include <Adafruit_NeoPixel.h>
 #include <SPI.h>
 #include "printf.h"
 #include "RF24.h"
@@ -12,23 +13,40 @@
 
 // instantiate an object for the nRF24L01 transceiver
 RF24 radio(7, 8); // using pin 7 for the CE pin, and pin 8 for the CSN pin
+//Pin 13 -> SCK  (52)
+//Pin 12 -> MISO (50)
+//Pin 11 -> MOSI (51)
+//Pin  8 -> CSN  
+//Pin  7 -> CE
+//Unused -> IRQ
 
-/*                 Pin assignments 
-         GND                               3.3V
-     CE -> PIN 7                      CSN -> PIN 8
-    SCK -> PIN 52                    MOSI -> PIN 51
-   MISO -> PIN 50                     IRQ -> UNUSED
-*/
+VarSpeedServo myservo1;  // create servo object to control a servo               
+VarSpeedServo myservo2;
+VarSpeedServo myservo3;  // create servo object to control a servo 
 
-/* Create servo object to control a servo */
-VarSpeedServo myservo1;         
-VarSpeedServo myservo2;  
-VarSpeedServo myservo3; 
+const int servoPin1 = 9; // the digital pin used for the first servo
+const int servoPin2 = 6; // the digital pin used for the second servo
+const int servoPin3 = 5; // the digital pin used for the first servo
 
-/*Digitla pin used for the first servo*/
-const int servoPin1 = 9; 
-const int servoPin2 = 6; 
-const int servoPin3 = 5; 
+Adafruit_NeoPixel pixels1(12, 3, NEO_GRB + NEO_KHZ800);
+Adafruit_NeoPixel pixels2(12, 4, NEO_GRB + NEO_KHZ800);
+Adafruit_NeoPixel pixels3(12, 10, NEO_GRB + NEO_KHZ800);
+Adafruit_NeoPixel pixels4(12, 11, NEO_GRB + NEO_KHZ800);
+
+void SetLED1(int j);
+void SetLED2(int j);
+void SetLED3(int j);
+void SetLED4(int j);
+
+void ClearLED1(int j);
+void ClearLED2(int j);
+void ClearLED3(int j);
+void ClearLED4(int j);
+
+#define S3Min 90; // This corresponds to the elbow servo at "straight"
+#define S2Min 30; // This corresponds to the shoulder adduction/abduction servo at "straight down
+
+float Servo1LEDVal;
 
 // an identifying device destination
 // Let these addresses be used for the pair
@@ -49,31 +67,70 @@ struct PayloadStruct {
 PayloadStruct payload;
 
 void setup() {
+
+  
   Serial.begin(115200);
   myservo1.attach(servoPin1);  // attaches the servo on pin 9 to the servo object
-  myservo1.write(0,20,true); // set the intial position of the servo, as fast as possible, run in background
+  myservo1.write(45,20,true); // set the intial position of the servo, as fast as possible, run in background
   myservo2.attach(servoPin2);  // attaches the servo on pin 9 to the servo object
-  myservo2.write(0,20,true);  // set the intial position of the servo, as fast as possible, wait until done
+  myservo2.write(45,20,true);  // set the intial position of the servo, as fast as possible, wait until done
   myservo3.attach(servoPin3);  // attaches the servo on pin 9 to the servo object
-  myservo3.write(0,20,true);  // set the intial position of the servo, as fast as possible, wait until done
+  myservo3.write(45,20,true);  // set the intial position of the servo, as fast as possible, wait until done
 
+  pixels1.begin(); // INITIALIZE NeoPixel strip object (REQUIRED)
+  pixels2.begin(); // INITIALIZE NeoPixel strip object (REQUIRED)
+  pixels3.begin(); // INITIALIZE NeoPixel strip object (REQUIRED)
+  pixels4.begin(); // INITIALIZE NeoPixel strip object (REQUIRED)
+  for (int i = 3; i < 15; i++) { // For each pixel...
+    if (i > 11) {
+      i = i - 12;
+      pixels1.setPixelColor(i, pixels1.Color(0 + i, 12 - i, 0 + i));
+      pixels2.setPixelColor(i, pixels2.Color(0 + i, 12 - i, 0 + i));
+      pixels3.setPixelColor(i, pixels3.Color(0 + i, 12 - i, 0 + i));
+      pixels4.setPixelColor(i, pixels4.Color(0 + i, 12 - i, 0 + i));
+      pixels1.show();
+      pixels2.show();
+      pixels3.show();
+      pixels4.show();
+      i = i + 12;
+    }
+    else {
+      pixels1.setPixelColor(i, pixels1.Color(i, 12 - i, i));
+      pixels2.setPixelColor(i, pixels2.Color(12 - i, 12 - i, i));
+      pixels3.setPixelColor(i, pixels3.Color(i, i, 12 - i));
+      pixels4.setPixelColor(i, pixels4.Color(i, 12 - i, i));
+    }
+
+    pixels1.show();
+    pixels2.show();
+    pixels3.show();
+    pixels4.show();
+    delay(100);
+  }
+  ClearLED1(0);
+  ClearLED2(0);
+  ClearLED3(0);
+  ClearLED4(0);
 //ensure that the select is turned on to enable commmunication
   pinMode(53, OUTPUT);
   digitalWrite(53, HIGH);
-
+  
     // initialize the transceiver on the SPI bus
   if (!radio.begin()) {
+    SetLED1(270);
     while (1) {} // hold in infinite loop
   }
   
   pinMode(53, OUTPUT);
   digitalWrite(53, HIGH);
   Serial.println("Connected");
+  
   // Set the PA Level low to try preventing power supply related problems
   // because these examples are likely run with nodes in close proximity to
   // each other.
-  radio.setPALevel(RF24_PA_LOW);     // RF24_PA_MAX is default.
-
+  //radio.setPALevel(RF24_PA_LOW);     // RF24_PA_MAX is default.
+  radio.setPALevel(RF24_PA_HIGH);     // RF24_PA_MAX is default.
+  
   radio.enableDynamicPayloads();    // ACK payloads are dynamically sized
 
   // set the TX address of the RX node into the TX pipe
@@ -83,7 +140,8 @@ void setup() {
   radio.openReadingPipe(1, address[!radioNumber]); // using pipe 1
 
   radio.startListening();                                     // put radio in RX mode
-} // void setup loop
+
+}
 
 void loop() 
 {
@@ -105,40 +163,248 @@ void loop()
       radio.startListening();
       
       //convert servo angles from incoming EMG data to 180 degree scale
+      
       if(received.message[1] == '.')
       {
-        Servo1Angle = (float)(received.message[0] - '0')/99*180;
+        if(((Servo1Angle - ((float)(received.message[0] - '0')/99*180)) > 10) || ((Servo1Angle - ((float)(received.message[0] - '0')/99*180)) < - 10))
+          {
+            Servo1Angle = (float)(received.message[0] - '0')/99*180;
+          }
       }
       else
       {
-        Servo1Angle = (float)((received.message[0] - '0')*10 + (received.message[1] - '0'))/99*180;
+        if(((Servo1Angle - ((float)((received.message[0] - '0')*10 + (received.message[1] - '0'))/99*180)) > 10) || ((Servo1Angle - ((float)((received.message[0] - '0')*10 + (received.message[1] - '0'))/99*180)) < - 10))
+        {
+          Servo1Angle = (float)((received.message[0] - '0')*10 + (received.message[1] - '0'))/99*180;
+        }
       }
       
-//      if(received.message[3] == '.')
-//      {
-//        Servo2Angle = (float)(received.message[2] - '0')/99*180;
-//      }
-//      else
-//      {
-//        Servo2Angle = (float)((received.message[2] - '0')*10 + (received.message[3] - '0'))/99*180;
-//      }
-//
-//      if(received.message[5] == '.')
-//      {
-//        Servo3Angle = (float)(received.message[4] - '0')/99*180;
-//      }
-//      else
-//      {
-//        Servo3Angle = (float)((received.message[4] - '0')*10 + (received.message[5] - '0'))/99*180;
-//      }
+      if(received.message[3] == '.')
+      {
+        if(((Servo2Angle - ((float)(received.message[2] - '0')/99*180)) > 10) || ((Servo2Angle - ((float)(received.message[2] - '0')/99*180)) < - 10))
+        {
+          Servo2Angle = (float)(received.message[2] - '0')/99*180;
+        }
+      }
+      else
+      {
+        if(((Servo2Angle - ((float)((received.message[2] - '0')*10 + (received.message[3] - '0'))/99*180)) > 10) || ((Servo2Angle - ((float)((received.message[2] - '0')*10 + (received.message[3] - '0'))/99*180)) < - 10))
+        {
+          Servo2Angle = (float)((received.message[2] - '0')*10 + (received.message[3] - '0'))/99*180;
+        }
+      }
+
+      if(received.message[5] == '.')
+      {
+        if(((Servo3Angle - ((float)(received.message[4] - '0')/99*180)) > 10) || ((Servo3Angle - ((float)(received.message[4] - '0')/99*180)) < - 10))
+        {
+          Servo3Angle = (float)(received.message[4] - '0')/99*180;
+        }
+      }
+      else
+      {
+        if(((Servo3Angle - ((float)((received.message[4] - '0')*10 + (received.message[5] - '0'))/99*180)) > 10) || ((Servo3Angle - ((float)((received.message[4] - '0')*10 + (received.message[5] - '0'))/99*180)) < - 10))
+        {
+          Servo3Angle = (float)((received.message[4] - '0')*10 + (received.message[5] - '0'))/99*180;
+        }
+      }
       
-      Serial.println(received.message[0]);
-//      Serial.println(Servo1Angle);   
+//      Serial.println(received.message[0]);
+//      Serial.println(Servo1Angle);
+      
+        if(Servo1Angle > 120)
+        {
+          Servo1Angle = 120;
+        }
+        else if(Servo1Angle < 45)
+        {
+          Servo1Angle = 45;
+        }
+
+        if(Servo2Angle > 120)
+        {
+          Servo2Angle = 120;
+        }
+        else if(Servo2Angle < 45)
+        {
+          Servo2Angle = 45;
+        }
+
+        if(Servo3Angle > 120)
+        {
+          Servo3Angle = 120;
+        }
+        else if(Servo3Angle < 45)
+        {
+          Servo3Angle = 45;
+        }
+        
+//      Servo2Angle = Servo2Angle / 2 + S2Min;
+//      Servo3Angle = Servo3Angle * (12 / 27) + S3Min;
+      
       
       myservo1.write(Servo1Angle,50,false); // set the position of the servo, as fast as possible, run in background
-//      myservo2.write(Servo2Angle,50,false); // set the position of the servo, as fast as possible, run in background
-//      myservo3.write(Servo3Angle,50,false); // set the position of the servo, as fast as possible, run in background
+      myservo2.write(Servo2Angle,50,false); // set the position of the servo, as fast as possible, run in background
+      myservo3.write(Servo3Angle,50,false); // set the position of the servo, as fast as possible, run in background
+
+      pixels1.clear();
+      pixels2.clear();
+      pixels3.clear();
+      pixels4.clear();
       
-    }// if (radio.available(&pipe)) 
+      SetLED1(Servo1Angle);
+      SetLED2(Servo2Angle);
+      SetLED3(Servo3Angle);
+      
+    }
 
 } // loop
+
+void SetLED1(int j) {
+  float test = j * 15;
+  test = test / 120;
+  for (int i = 3; i < 15; i++) { // For each pixel...
+    if (i <= test) {
+      if (i > 11) {
+        i = i - 12;
+        pixels1.setPixelColor(i, pixels1.Color(0, 0, 5));
+        pixels1.show();
+        i = i + 12;
+      }
+      else {
+        pixels1.setPixelColor(i, pixels1.Color(0, 0, 5));
+        pixels1.show();
+      }
+    }
+    else {
+//      ClearLED1(test);
+      break;
+    }
+  }
+}
+
+void SetLED2(int j) {
+  float test = j * 15;
+  test = test / 120;
+  for (int i = 3; i < 15; i++) { // For each pixel...
+    if (i <= test) {
+      if (i > 11) {
+        i = i - 12;
+        pixels2.setPixelColor(i, pixels2.Color(0, 0, 5));
+        pixels2.show();
+        i = i + 12;
+      }
+      else {
+        pixels2.setPixelColor(i, pixels2.Color(0, 0, 5));
+        pixels2.show();
+      }
+    }
+    else {
+//      ClearLED1(test);
+      break;
+    }
+  }
+}
+
+void SetLED3(int j) {
+  float test = j * 15;
+  test = test / 120;
+  for (int i = 3; i < 15; i++) { // For each pixel...
+    if (i <= test) {
+      if (i > 11) {
+        i = i - 12;
+        pixels3.setPixelColor(i, pixels3.Color(0, 0, 5));
+        pixels3.show();
+        i = i + 12;
+      }
+      else {
+        pixels3.setPixelColor(i, pixels3.Color(0, 0, 5));
+        pixels3.show();
+      }
+    }
+    else {
+//      ClearLED1(test);
+      break;
+    }
+  }
+}
+
+void SetLED4(int j) {
+  float test = j * 15;
+  test = test / 120;
+  for (int i = 3; i < 15; i++) { // For each pixel...
+    if (i <= test) {
+      if (i > 11) {
+        i = i - 12;
+        pixels4.setPixelColor(i, pixels4.Color(0, 0, 5));
+        pixels4.show();
+        i = i + 12;
+      }
+      else {
+        pixels4.setPixelColor(i, pixels4.Color(0, 0, 5));
+        pixels4.show();
+      }
+    }
+    else {
+//      ClearLED1(test);
+      break;
+    }
+  }
+}
+
+void ClearLED1(int j) {
+  if (j == 0) {
+    for (int i = 0; i < 12; i++) { // For each pixel...
+      pixels1.setPixelColor(i, pixels1.Color(0, 0, 0));
+      pixels1.show();
+    }
+  }
+  else {
+    for (int i = j + 1; i < 12; i++) { // For each pixel...
+      pixels1.setPixelColor(i, pixels1.Color(0, 0, 0));
+      pixels1.show();
+    }
+  }
+}
+void ClearLED2(int j) {
+  if (j == 0) {
+    for (int i = 0; i < 12; i++) { // For each pixel...
+      pixels2.setPixelColor(i, pixels2.Color(0, 0, 0));
+      pixels2.show();
+    }
+  }
+  else {
+    for (int i = j + 1; i < 12; i++) { // For each pixel...
+      pixels2.setPixelColor(i, pixels2.Color(0, 0, 0));
+      pixels2.show();
+    }
+  }
+}
+void ClearLED3(int j) {
+  if (j == 0) {
+    for (int i = 0; i < 12; i++) { // For each pixel...
+      pixels3.setPixelColor(i, pixels3.Color(0, 0, 0));
+      pixels3.show();
+    }
+  }
+  else {
+    for (int i = j + 1; i < 12; i++) { // For each pixel...
+      pixels3.setPixelColor(i, pixels3.Color(0, 0, 0));
+      pixels3.show();
+    }
+  }
+}
+void ClearLED4(int j) {
+  if (j == 0) {
+    for (int i = 0; i < 12; i++) { // For each pixel...
+      pixels4.setPixelColor(i, pixels4.Color(0, 0, 0));
+      pixels4.show();
+    }
+  }
+  else {
+    for (int i = j + 1; i < 12; i++) { // For each pixel...
+      pixels4.setPixelColor(i, pixels4.Color(0, 0, 0));
+      pixels4.show();
+    }
+  }
+}
