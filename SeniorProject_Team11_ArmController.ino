@@ -237,31 +237,22 @@ void loop()
       }
 
       //Limits to prevent servos from breaking
-      if(Servo1Angle > 120)
+      if(Servo1Angle > 85)
       {
-        Servo1Angle = 120;
+        Servo1Angle = 85;
       }
-      else if(Servo1Angle < 45)
+      else if(Servo1Angle < 15)
       {
-        Servo1Angle = 45;
-      }
-
-      if(Servo2Angle > 120)
-      {
-        Servo2Angle = 120;
-      }
-      else if(Servo2Angle < 45)
-      {
-        Servo2Angle = 45;
+        Servo1Angle = 15;
       }
 
-      if(Servo3Angle > 120)
+      if(Servo2Angle > 150)
       {
-        Servo3Angle = 120;
+        Servo2Angle = 150;
       }
-      else if(Servo3Angle < 45)
+      else if(Servo2Angle < 35)
       {
-        Servo3Angle = 45;
+        Servo2Angle = 35;
       }
       
       myservo1.write(Servo1Angle,50,false); // set the position of the servo, as fast as possible, run in background
