@@ -69,12 +69,11 @@ PayloadStruct payload;
 void setup() {
 
   
-  Serial.begin(115200);
   myservo1.attach(servoPin1);  // attaches the servo on pin 9 to the servo object
   myservo1.write(45,20,true); // set the intial position of the servo, as fast as possible, run in background
-  myservo2.attach(servoPin2);  // attaches the servo on pin 9 to the servo object
+  myservo2.attach(servoPin2);  // attaches the servo on pin 6 the servo object
   myservo2.write(45,20,true);  // set the intial position of the servo, as fast as possible, wait until done
-  myservo3.attach(servoPin3);  // attaches the servo on pin 9 to the servo object
+  myservo3.attach(servoPin3);  // attaches the servo on pin 5 to the servo object
   myservo3.write(45,20,true);  // set the intial position of the servo, as fast as possible, wait until done
 
   pixels1.begin(); // INITIALIZE NeoPixel strip object (REQUIRED)
@@ -149,6 +148,8 @@ void loop()
     int Servo1Angle;
     int Servo2Angle;
     int Servo3Angle;
+    int Sensor3Val;
+    int Sensor4Val;
     
     uint8_t pipe;
 
@@ -163,7 +164,8 @@ void loop()
       radio.startListening();
       
       //convert servo angles from incoming EMG data to 180 degree scale
-      
+
+      //Sensor1
       if(received.message[1] == '.')
       {
         if(((Servo1Angle - ((float)(received.message[0] - '0')/99*180)) > 10) || ((Servo1Angle - ((float)(received.message[0] - '0')/99*180)) < - 10))
@@ -178,7 +180,7 @@ void loop()
           Servo1Angle = (float)((received.message[0] - '0')*10 + (received.message[1] - '0'))/99*180;
         }
       }
-      
+      //Sensor2
       if(received.message[3] == '.')
       {
         if(((Servo2Angle - ((float)(received.message[2] - '0')/99*180)) > 10) || ((Servo2Angle - ((float)(received.message[2] - '0')/99*180)) < - 10))
@@ -193,55 +195,74 @@ void loop()
           Servo2Angle = (float)((received.message[2] - '0')*10 + (received.message[3] - '0'))/99*180;
         }
       }
-
+      //Sensor3
       if(received.message[5] == '.')
       {
-        if(((Servo3Angle - ((float)(received.message[4] - '0')/99*180)) > 10) || ((Servo3Angle - ((float)(received.message[4] - '0')/99*180)) < - 10))
+        if(((Sensor3Val - ((float)(received.message[4] - '0')/99*180)) > 10) || ((Sensor3Val - ((float)(received.message[4] - '0')/99*180)) < - 10))
         {
-          Servo3Angle = (float)(received.message[4] - '0')/99*180;
+          Sensor3Val = (float)(received.message[4] - '0')/99*180;
         }
       }
       else
       {
-        if(((Servo3Angle - ((float)((received.message[4] - '0')*10 + (received.message[5] - '0'))/99*180)) > 10) || ((Servo3Angle - ((float)((received.message[4] - '0')*10 + (received.message[5] - '0'))/99*180)) < - 10))
+        if(((Sensor3Val - ((float)((received.message[4] - '0')*10 + (received.message[5] - '0'))/99*180)) > 10) || ((Sensor3Val - ((float)((received.message[4] - '0')*10 + (received.message[5] - '0'))/99*180)) < - 10))
         {
-          Servo3Angle = (float)((received.message[4] - '0')*10 + (received.message[5] - '0'))/99*180;
+          Sensor3Val = (float)((received.message[4] - '0')*10 + (received.message[5] - '0'))/99*180;
         }
       }
-      
-//      Serial.println(received.message[0]);
-//      Serial.println(Servo1Angle);
-      
-        if(Servo1Angle > 120)
+      //Sensor4
+      if(received.message[7] == '.')
+      {
+        if(((Sensor4Val - ((float)(received.message[6] - '0')/99*180)) > 10) || ((Sensor4Val - ((float)(received.message[6] - '0')/99*180)) < - 10))
         {
-          Servo1Angle = 120;
+          Sensor4Val = (float)(received.message[6] - '0')/99*180;
         }
-        else if(Servo1Angle < 45)
+      }
+      else
+      {
+        if(((Sensor4Val - ((float)((received.message[6] - '0')*10 + (received.message[7] - '0'))/99*180)) > 10) || ((Sensor4Val - ((float)((received.message[6] - '0')*10 + (received.message[7] - '0'))/99*180)) < - 10))
         {
-          Servo1Angle = 45;
+          Sensor4Val = (float)((received.message[6] - '0')*10 + (received.message[7] - '0'))/99*180;
         }
+      }
 
-        if(Servo2Angle > 120)
-        {
-          Servo2Angle = 120;
-        }
-        else if(Servo2Angle < 45)
-        {
-          Servo2Angle = 45;
-        }
+      //Arm rotation depends on difference of Sensor 3 and 4
+      if((Sensor3Val - Sensor4Val) >= 0)                    //If sensor 3 is greater, go clockwise
+      {
+        Servo3Angle = (float)(Sensor3Val - Sensor4Val)/2+90;
+      }
+      else if((Sensor4Val - Sensor3Val) > 0)                //else if 4 is greater, go counter clockwise
+      {
+        Servo3Angle = (float)(-1*(Sensor4Val - Sensor3Val)/2)*90;
+      }
 
-        if(Servo3Angle > 120)
-        {
-          Servo3Angle = 120;
-        }
-        else if(Servo3Angle < 45)
-        {
-          Servo3Angle = 45;
-        }
-        
-//      Servo2Angle = Servo2Angle / 2 + S2Min;
-//      Servo3Angle = Servo3Angle * (12 / 27) + S3Min;
-      
+      //Limits to prevent servos from breaking
+      if(Servo1Angle > 120)
+      {
+        Servo1Angle = 120;
+      }
+      else if(Servo1Angle < 45)
+      {
+        Servo1Angle = 45;
+      }
+
+      if(Servo2Angle > 120)
+      {
+        Servo2Angle = 120;
+      }
+      else if(Servo2Angle < 45)
+      {
+        Servo2Angle = 45;
+      }
+
+      if(Servo3Angle > 120)
+      {
+        Servo3Angle = 120;
+      }
+      else if(Servo3Angle < 45)
+      {
+        Servo3Angle = 45;
+      }
       
       myservo1.write(Servo1Angle,50,false); // set the position of the servo, as fast as possible, run in background
       myservo2.write(Servo2Angle,50,false); // set the position of the servo, as fast as possible, run in background
@@ -254,7 +275,8 @@ void loop()
       
       SetLED1(Servo1Angle);
       SetLED2(Servo2Angle);
-      SetLED3(Servo3Angle);
+      SetLED3(Sensor3Val);
+      SetLED4(Sensor4Val);
       
     }
 
