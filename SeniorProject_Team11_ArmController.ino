@@ -25,26 +25,23 @@ VarSpeedServo myservo2;
 VarSpeedServo myservo3;  // create servo object to control a servo 
 
 const int servoPin1 = 9; // the digital pin used for the first servo
-const int servoPin2 = 6; // the digital pin used for the second servo
-const int servoPin3 = 5; // the digital pin used for the first servo
+const int servoPin2 = 5; // the digital pin used for the second servo
+const int servoPin3 = 6; // the digital pin used for the first servo
 
 Adafruit_NeoPixel pixels1(12, 3, NEO_GRB + NEO_KHZ800);
 Adafruit_NeoPixel pixels2(12, 4, NEO_GRB + NEO_KHZ800);
 Adafruit_NeoPixel pixels3(12, 10, NEO_GRB + NEO_KHZ800);
 Adafruit_NeoPixel pixels4(12, 11, NEO_GRB + NEO_KHZ800);
 
-void SetLED1(int j);
-void SetLED2(int j);
-void SetLED3(int j);
-void SetLED4(int j);
+void SetLED1(float j);
+void SetLED2(float j);
+void SetLED3(float j);
+void SetLED4(float j);
 
 void ClearLED1(int j);
 void ClearLED2(int j);
 void ClearLED3(int j);
 void ClearLED4(int j);
-
-#define S3Min 90; // This corresponds to the elbow servo at "straight"
-#define S2Min 30; // This corresponds to the shoulder adduction/abduction servo at "straight down
 
 float Servo1LEDVal;
 
@@ -58,28 +55,43 @@ bool radioNumber = 1; // 0 uses address[0] to transmit, 1 uses address[1] to tra
 // Used to control whether this node is sending or receiving
 bool role = false;  // true = TX role, false = RX role
 
-int letssee = 10;
+unsigned long previousMillis = 0;        // will store last time message was sent
+const long interval = 5000;             // timeout for communication to RF module
 
 struct PayloadStruct {
   char message[13];          // only using 13 characters for TX & ACK payloads
   uint8_t counter;
 };
 PayloadStruct payload;
+PayloadStruct received;
+
+//For adjusting ranges and resolution of servos
+const int Servo1Offset = 85;
+const int Servo1Scale  = -75;
+const int Servo2Offset = 30;
+const int Servo2Scale  = 130;
+const int Servo3Offset = 0;
+const int Servo3Scale  = 180;
+const int Servo1Tol = 1;
+const int Servo2Tol = 5;
+const int Servo3Tol = 5;
 
 void setup() {
 
-  
+  myservo1.write(85,20,false); // set the initial position of the servo, as fast as possible, run in background
   myservo1.attach(servoPin1);  // attaches the servo on pin 9 to the servo object
-  myservo1.write(45,20,true); // set the intial position of the servo, as fast as possible, run in background
+  delay(2500);
+  myservo2.write(30,20,false);  // set the initial position of the servo, as fast as possible, wait until done
   myservo2.attach(servoPin2);  // attaches the servo on pin 6 the servo object
-  myservo2.write(45,20,true);  // set the intial position of the servo, as fast as possible, wait until done
+  delay(2500);
+  myservo3.write(15,20,false);  // set the initial position of the servo, as fast as possible, wait until done
   myservo3.attach(servoPin3);  // attaches the servo on pin 5 to the servo object
-  myservo3.write(45,20,true);  // set the intial position of the servo, as fast as possible, wait until done
 
   pixels1.begin(); // INITIALIZE NeoPixel strip object (REQUIRED)
   pixels2.begin(); // INITIALIZE NeoPixel strip object (REQUIRED)
   pixels3.begin(); // INITIALIZE NeoPixel strip object (REQUIRED)
   pixels4.begin(); // INITIALIZE NeoPixel strip object (REQUIRED)
+    
   for (int i = 3; i < 15; i++) { // For each pixel...
     if (i > 11) {
       i = i - 12;
@@ -115,14 +127,12 @@ void setup() {
   digitalWrite(53, HIGH);
   
     // initialize the transceiver on the SPI bus
-  if (!radio.begin()) {
-    SetLED1(270);
-    while (1) {} // hold in infinite loop
+  while (!radio.begin()) {
+    SetLED1(1);
   }
   
   pinMode(53, OUTPUT);
   digitalWrite(53, HIGH);
-  Serial.println("Connected");
   
   // Set the PA Level low to try preventing power supply related problems
   // because these examples are likely run with nodes in close proximity to
@@ -139,6 +149,22 @@ void setup() {
   radio.openReadingPipe(1, address[!radioNumber]); // using pipe 1
 
   radio.startListening();                                     // put radio in RX mode
+  
+  pinMode(13, INPUT);                                         //used to determine if Estop is pressed.
+
+  //initializing the message string 
+  received.message[0] = '0';
+  received.message[1] = '0';
+  received.message[2] = '0';
+  received.message[3] = '0';
+  received.message[4] = '0';
+  received.message[5] = '0';
+  received.message[6] = '0';
+  received.message[7] = '0';
+  received.message[8] = '0';
+  received.message[9] = '0';
+  received.message[10] = 0;
+  received.message[11] = 0;
 
 }
 
@@ -150,55 +176,94 @@ void loop()
     int Servo3Angle;
     int Sensor3Val;
     int Sensor4Val;
-    
+ 
     uint8_t pipe;
+    
+    unsigned long currentMillis = millis();
 
+    if(!digitalRead(13))
+    {
+      myservo1.write(85,20,false); // return to resting position to avoid jumps
+      myservo2.write(30,20,false);
+      myservo3.write(15,20,false);  
+    }
+
+    //check for timeout of RF communication
+    if (currentMillis - previousMillis >= interval) 
+    {
+       previousMillis = currentMillis;
+       radio.stopListening();                                      // put radio in TX mode
+       received.message[11] |= 0b00000001;                        //set error for communication
+       radio.write(&received, sizeof(received));    // transmit to usb dongle for data display. We dont care if it doesnt receive it since we'll see it
+       radio.startListening();
+    }
+    else    //disable the error
+    {
+      received.message[11] &= ~0b00000001;
+    }
+    
     if (radio.available(&pipe)) 
     {                    // is there a payload? get the pipe number that recieved it
+      previousMillis = currentMillis;                 //reset timeout counter
       uint8_t bytes = radio.getDynamicPayloadSize(); // get the size of the payload
-      PayloadStruct received;
       radio.read(&received, sizeof(received));       // get incoming payload
 
       radio.stopListening();                                      // put radio in TX mode
       radio.write(&received, sizeof(received));    // transmit to usb dongle for data display. We dont care if it doesnt receieve it since we'll see it
       radio.startListening();
       
-      //convert servo angles from incoming EMG data to 180 degree scale
+      //convert servo angles from incoming EMG data to custom degree scale
 
       //Sensor1
       if(received.message[1] == '.')
       {
-        if(((Servo1Angle - ((float)(received.message[0] - '0')/99*180)) > 10) || ((Servo1Angle - ((float)(received.message[0] - '0')/99*180)) < - 10))
+        if(((Servo1Angle - ((float)(received.message[0] - '0')/99*Servo1Scale+Servo1Offset)) > Servo1Tol) || ((Servo1Angle - ((float)(received.message[0] - '0')/99*Servo1Scale+Servo1Offset)) < -1*Servo1Tol))
           {
-            Servo1Angle = (float)(received.message[0] - '0')/99*180;
+            Servo1Angle = (float)(received.message[0] - '0')/99*Servo1Scale+Servo1Offset;
+            if(digitalRead(13))
+            {
+              myservo1.write(Servo1Angle,50,false); // set the position of the servo, as fast as possible, run in background
+            }
           }
       }
       else
       {
-        if(((Servo1Angle - ((float)((received.message[0] - '0')*10 + (received.message[1] - '0'))/99*180)) > 10) || ((Servo1Angle - ((float)((received.message[0] - '0')*10 + (received.message[1] - '0'))/99*180)) < - 10))
+        if(((Servo1Angle - ((float)((received.message[0] - '0')*10 + (received.message[1] - '0'))/99*Servo1Scale+Servo1Offset)) > Servo1Tol) || ((Servo1Angle - ((float)((received.message[0] - '0')*10 + (received.message[1] - '0'))/99*Servo1Scale+Servo1Offset)) < -1*Servo1Tol))
         {
-          Servo1Angle = (float)((received.message[0] - '0')*10 + (received.message[1] - '0'))/99*180;
+          Servo1Angle = (float)((received.message[0] - '0')*10 + (received.message[1] - '0'))/99*Servo1Scale+Servo1Offset;
+          if(digitalRead(13))
+          {
+            myservo1.write(Servo1Angle,50,false); // set the position of the servo, as fast as possible, run in background
+          }
         }
       }
       //Sensor2
       if(received.message[3] == '.')
       {
-        if(((Servo2Angle - ((float)(received.message[2] - '0')/99*180)) > 10) || ((Servo2Angle - ((float)(received.message[2] - '0')/99*180)) < - 10))
+        if(((Servo2Angle - ((float)(received.message[2] - '0')/99*Servo2Scale+Servo2Offset)) > 10) || ((Servo2Angle - ((float)(received.message[2] - '0')/99*Servo2Scale+Servo2Offset)) < - 10))
         {
-          Servo2Angle = (float)(received.message[2] - '0')/99*180;
+          Servo2Angle = (float)(received.message[2] - '0')/99*Servo2Scale+Servo2Offset;
+          if(digitalRead(13))
+          {
+            myservo2.write(Servo2Angle,50,false); // set the position of the servo, as fast as possible, run in background
+          }
         }
       }
       else
       {
-        if(((Servo2Angle - ((float)((received.message[2] - '0')*10 + (received.message[3] - '0'))/99*180)) > 10) || ((Servo2Angle - ((float)((received.message[2] - '0')*10 + (received.message[3] - '0'))/99*180)) < - 10))
+        if(((Servo2Angle - ((float)((received.message[2] - '0')*10 + (received.message[3] - '0'))/99*Servo2Scale+Servo2Offset)) > 10) || ((Servo2Angle - ((float)((received.message[2] - '0')*10 + (received.message[3] - '0'))/99*Servo2Scale+Servo2Offset)) < - 10))
         {
-          Servo2Angle = (float)((received.message[2] - '0')*10 + (received.message[3] - '0'))/99*180;
+          Servo2Angle = (float)((received.message[2] - '0')*10 + (received.message[3] - '0'))/99*Servo2Scale+Servo2Offset;
+          if(digitalRead(13))
+          {
+            myservo2.write(Servo2Angle,50,false); // set the position of the servo, as fast as possible, run in background
+          }
         }
       }
       //Sensor3
       if(received.message[5] == '.')
       {
-        if(((Sensor3Val - ((float)(received.message[4] - '0')/99*180)) > 10) || ((Sensor3Val - ((float)(received.message[4] - '0')/99*180)) < - 10))
+        if(((Sensor3Val - ((float)(received.message[4] - '0')/99*180)) > 10) || ((Sensor3Val - ((float)(received.message[4] - '0')/99*180)) < -10))
         {
           Sensor3Val = (float)(received.message[4] - '0')/99*180;
         }
@@ -233,49 +298,57 @@ void loop()
       }
       else if((Sensor4Val - Sensor3Val) > 0)                //else if 4 is greater, go counter clockwise
       {
-        Servo3Angle = (float)(-1*(Sensor4Val - Sensor3Val)/2)*90;
+        Servo3Angle = (float)(-1*(Sensor4Val - Sensor3Val)/2)+90;
+      }
+      else
+      {
+        Servo3Angle = 90;
       }
 
       //Limits to prevent servos from breaking
-      if(Servo1Angle > 85)
+      if(Servo1Angle > Servo1Offset)
       {
-        Servo1Angle = 85;
+        Servo1Angle = Servo1Offset;
       }
-      else if(Servo1Angle < 15)
+      else if(Servo1Angle < Servo1Offset+Servo1Scale)
       {
-        Servo1Angle = 15;
+        Servo1Angle = Servo1Offset+Servo1Scale;
       }
 
-      if(Servo2Angle > 150)
+      if(Servo2Angle > Servo2Scale+Servo2Offset)
       {
-        Servo2Angle = 150;
+        Servo2Angle = Servo2Scale+Servo2Offset;
       }
-      else if(Servo2Angle < 35)
+      else if(Servo2Angle < Servo2Offset)
       {
-        Servo2Angle = 35;
+        Servo2Angle = Servo2Offset;
       }
-      
-      myservo1.write(Servo1Angle,50,false); // set the position of the servo, as fast as possible, run in background
-      myservo2.write(Servo2Angle,50,false); // set the position of the servo, as fast as possible, run in background
-      myservo3.write(Servo3Angle,50,false); // set the position of the servo, as fast as possible, run in background
+
+
+      if(digitalRead(13))
+      {
+        myservo3.write(Servo3Angle,50,false); // set the position of the servo, as fast as possible, run in background
+      }
 
       pixels1.clear();
       pixels2.clear();
       pixels3.clear();
       pixels4.clear();
+
       
-      SetLED1(Servo1Angle);
-      SetLED2(Servo2Angle);
-      SetLED3(Sensor3Val);
-      SetLED4(Sensor4Val);
+      //set LEDs but normalize the scaling for proper printing
+      SetLED1((float)(Servo1Angle-Servo1Offset)/Servo1Scale*(-1));
+      SetLED2((float)(Servo2Angle-Servo2Offset)/Servo2Scale);
+      SetLED3((float)Sensor3Val/180);
+      SetLED4((float)Sensor4Val/180);SetLED4((float)Sensor4Val/180);
       
     }
 
 } // loop
 
-void SetLED1(int j) {
-  float test = j * 15;
-  test = test / 120;
+void SetLED1(float j) {
+  float test = (float)j * 15;
+ // test = test / 120;
   for (int i = 3; i < 15; i++) { // For each pixel...
     if (i <= test) {
       if (i > 11) {
@@ -296,9 +369,9 @@ void SetLED1(int j) {
   }
 }
 
-void SetLED2(int j) {
-  float test = j * 15;
-  test = test / 120;
+void SetLED2(float j) {
+  float test = (float)j * 15;
+//  test = test / 120;
   for (int i = 3; i < 15; i++) { // For each pixel...
     if (i <= test) {
       if (i > 11) {
@@ -319,9 +392,9 @@ void SetLED2(int j) {
   }
 }
 
-void SetLED3(int j) {
-  float test = j * 15;
-  test = test / 120;
+void SetLED3(float j) {
+  float test = (float)j * 15;
+//  test = test / 120;
   for (int i = 3; i < 15; i++) { // For each pixel...
     if (i <= test) {
       if (i > 11) {
@@ -342,9 +415,9 @@ void SetLED3(int j) {
   }
 }
 
-void SetLED4(int j) {
-  float test = j * 15;
-  test = test / 120;
+void SetLED4(float j) {
+  float test = (float)j * 15;
+//  test = test / 120;
   for (int i = 3; i < 15; i++) { // For each pixel...
     if (i <= test) {
       if (i > 11) {
